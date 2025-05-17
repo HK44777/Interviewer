@@ -12,7 +12,18 @@
     rel="stylesheet">
   <style>
     body, .btn { font-family: 'Poppins', sans-serif; }
-    body { margin: 0; padding: 0; background-color: #f0f2f5; }
+    body { 
+      margin: 0; 
+      padding: 0; 
+      /* light graph‑paper grid */
+      background-color: #fff;
+      background-image:
+        repeating-linear-gradient(0deg, #f0f0f0 0, #f0f0f0 1px, transparent 1px, transparent 40px),
+        repeating-linear-gradient(90deg, #f0f0f0 0, #f0f0f0 1px, transparent 1px, transparent 40px);
+      background-size: 40px 40px;
+      color: #333;
+      min-height: 100vh;
+    }
     /* Recording Banner */
     #recording-banner {
       position: fixed;
@@ -31,10 +42,11 @@
     /* Main Layout */
     .main-content {
       display: flex;
-      height: 100vh;
-      padding-top: 3rem; /* below banner */
-      gap: 1rem;
-      background-color: #f0f2f5;
+      min-height: 100vh;
+      padding: 3rem 2rem 2rem 2rem; /* top right bottom left */
+      gap: 2rem;
+      background-color: transparent;
+      box-sizing: border-box;
     }
 
     /* Panel Common */
@@ -45,6 +57,11 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: box-shadow 0.3s ease, transform 0.2s ease;
+    }
+    .panel.active {
+      box-shadow: 0 20px 48px rgba(0,0,0,0.1);
+      transform: translateY(-4px);
     }
     .panel-header {
       padding: 1rem 1.5rem;
@@ -57,10 +74,13 @@
       padding: 1.5rem;
       flex-grow: 1;
       overflow-y: auto;
+      background: #ffffff;
     }
 
     /* Question Panel Specific */
-    #question-panel { width: 35%; }
+    #question-panel { 
+      width: 35%;
+    }
     .problem-title { font-size: 1.5rem; font-weight: 600; margin-bottom: .75rem; }
     .section-heading { font-size: 1.1rem; font-weight: 600; margin-top: 1.25rem; }
     .testcase {
@@ -71,12 +91,42 @@
       font-size: .95rem;
       white-space: pre-wrap;
     }
-    #controls { padding: 1rem; text-align: center; border-top: 1px solid #e1e4e8; }
-    #controls .btn { width: 80%; }
-
+    
     /* Code Editor Panel Specific */
-    #editor-panel { flex-grow: 1; display: flex; flex-direction: column; }
+    #editor-panel { 
+      flex-grow: 1; 
+      display: flex; 
+      flex-direction: column;
+    }
     #editor { flex-grow: 1; }
+    
+    /* Chat Interface */
+    #chat-container {
+      margin-top: 1rem;
+      border-top: 1px solid #e1e4e8;
+      padding-top: 1rem;
+      background: #ffffff;
+    }
+    #chat-messages {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 0.25rem;
+    }
+    .message {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+    }
+    .user-message {
+      background: #e3f2fd;
+      text-align: right;
+    }
+    .ai-message {
+      background: #f1f1f1;
+    }
   </style>
 </head>
 <body>
@@ -88,7 +138,9 @@
     <div id="question-panel" class="panel">
       <div class="panel-header">Question</div>
       <div class="panel-body" id="question-content"></div>
-      <div id="controls"><button id="next-btn" class="btn btn-primary">Next Question</button></div>
+      <div id="chat-container">
+        <div id="chat-messages"></div>
+      </div>
     </div>
 
     <!-- Code Editor Panel -->
@@ -108,7 +160,197 @@
       { title: '3. Longest Substring Without Repeating Characters', prompt: 'Find the length of the longest substring without repeating characters.', examples: ['Input: s="abcabcbb"\nOutput: 3'], constraints: ['0 <= s.length <= 5*10^4'] }
     ];
 
-    let current = 0, recorder;
+    let current = 0;
+    let editor;
+    let recognition;
+    let isRecording = false;
+    let conversation = [];
+    let silenceTimer;
+    let lastUserActivity = Date.now();
+    let questionCompleted = false;
+
+    // Initialize speech recognition
+    function initSpeechRecognition() {
+      if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+      } else if ('SpeechRecognition' in window) {
+        recognition = new SpeechRecognition();
+      } else {
+        alert('Speech recognition is not supported in your browser.');
+        return false;
+      }
+      
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      recognition.onstart = function() {
+        isRecording = true;
+        document.getElementById('recording-banner').style.display = 'block';
+      };
+      
+      recognition.onend = function() {
+        isRecording = false;
+        document.getElementById('recording-banner').style.display = 'none';
+        // Restart recognition if it was stopped unexpectedly
+        if (!questionCompleted) {
+          setTimeout(() => {
+            if (!isRecording) {
+              recognition.start();
+            }
+          }, 1000);
+        }
+      };
+      
+      recognition.onresult = function(event) {
+        // Reset silence timer on any speech activity
+        lastUserActivity = Date.now();
+        clearTimeout(silenceTimer);
+        
+        // Check if we have a final result
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            const transcript = event.results[i][0].transcript;
+            addMessage('user', transcript);
+            
+            // Send transcript and code to server for processing
+            const code = editor.getValue();
+            processUserInput(transcript, code);
+            
+            // Start silence timer after user speaks
+            startSilenceTimer();
+          }
+        }
+      };
+      
+      recognition.onerror = function(event) {
+        console.error('Speech recognition error:', event.error);
+        isRecording = false;
+        document.getElementById('recording-banner').style.display = 'none';
+        
+        // Restart recognition if it was stopped due to an error
+        if (!questionCompleted) {
+          setTimeout(() => {
+            if (!isRecording) {
+              recognition.start();
+            }
+          }, 1000);
+        }
+      };
+      
+      return true;
+    }
+
+    // Start silence timer to detect when user has stopped speaking
+    function startSilenceTimer() {
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        // If user hasn't spoken for 5 seconds, check if we should move to next question
+        if (Date.now() - lastUserActivity > 5000) {
+          checkQuestionCompletion();
+        }
+      }, 5000);
+    }
+
+    // Check if the current question is completed
+    function checkQuestionCompletion() {
+      // Get the last few messages to analyze
+      const recentMessages = conversation.slice(-5);
+      
+      // Check for completion indicators in user messages
+      const completionIndicators = recentMessages.some(msg => 
+        msg.role === 'user' && 
+        (msg.content.toLowerCase().includes('done') || 
+         msg.content.toLowerCase().includes('finished') ||
+         msg.content.toLowerCase().includes('complete') ||
+         msg.content.toLowerCase().includes('next question'))
+      );
+      
+      // Check for AI confirmation of completion
+      const aiConfirmation = recentMessages.some(msg => 
+        msg.role === 'ai' && 
+        (msg.content.toLowerCase().includes('good job') || 
+         msg.content.toLowerCase().includes('well done') ||
+         msg.content.toLowerCase().includes('let\'s move on'))
+      );
+      
+      // Check if code has been written
+      const hasCode = editor.getValue().length > 50 && editor.getValue().includes('def');
+      
+      // If we have strong indicators of completion, move to next question
+      if ((completionIndicators && aiConfirmation) || (completionIndicators && hasCode)) {
+        questionCompleted = true;
+        recognition.stop();
+        
+        // Add a small delay before moving to next question
+        setTimeout(() => {
+          moveToNextQuestion();
+        }, 2000);
+      }
+    }
+
+    // Add message to chat
+    function addMessage(sender, text) {
+      const messagesContainer = document.getElementById('chat-messages');
+      const messageElement = document.createElement('div');
+      messageElement.classList.add('message');
+      messageElement.classList.add(sender === 'user' ? 'user-message' : 'ai-message');
+      messageElement.textContent = text;
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      // Add to conversation history
+      conversation.push({
+        role: sender,
+        content: text,
+        timestamp: new Date().toISOString(),
+        questionId: current + 1
+      });
+    }
+
+    // Process user input and get AI response
+    function processUserInput(transcript, code) {
+      fetch('/process_interview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcript: transcript,
+          code: code,
+          question_id: current + 1,
+          question_title: questions[current].title,
+          conversation: conversation
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Add AI response to chat
+          addMessage('ai', data.response);
+          
+          // Play audio response
+          playAudioResponse(data.audio_url);
+        } else {
+          console.error('Error processing input:', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+    }
+
+    // Play audio response
+    function playAudioResponse(audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.play();
+    }
+
+    // Move to the next question
+    function moveToNextQuestion() {
+      current = (current + 1) % questions.length;
+      loadQuestion(current);
+    }
 
     function loadQuestion(idx) {
       const q = questions[idx];
@@ -120,32 +362,75 @@
         <div class="section-heading">Constraints:</div>
         <ul>${q.constraints.map(c=>`<li>${c}</li>`).join('')}</ul>
       `;
-      if(recorder && recorder.state==='recording') recorder.stop();
-      startRecording();
-    }
-
-    function startRecording() {
-      navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-        recorder = new MediaRecorder(stream);
-        const chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {/* process chunks */};
-        recorder.start();
-        document.getElementById('recording-banner').style.display = 'block';
-      }).catch(console.error);
+      
+      // Reset for new question
+      questionCompleted = false;
+      conversation = [];
+      document.getElementById('chat-messages').innerHTML = '';
+      editor.setValue("# Write your Python solution here");
+      
+      // Send request to start a new question
+      fetch('/start_question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question_id: idx + 1,
+          question_title: q.title
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.audio_url) {
+          // Add AI initial message
+          addMessage('ai', data.response);
+          
+          // Play audio response
+          playAudioResponse(data.audio_url);
+          
+          // Start recording after AI speaks
+          setTimeout(() => {
+            if (!isRecording && !questionCompleted) {
+              recognition.start();
+            }
+          }, 1000);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      ace.edit('editor', { mode: 'ace/mode/python', theme: 'ace/theme/github', fontSize: 14, showPrintMargin: false, tabSize: 4, useSoftTabs: true });
-      document.getElementById('next-btn').addEventListener('click', () => {
-        if(recorder && recorder.state==='recording'){
-          recorder.stop();
-          document.getElementById('recording-banner').style.display = 'none';
-        }
-        current = (current + 1) % questions.length;
-        loadQuestion(current);
+      editor = ace.edit('editor', { 
+        mode: 'ace/mode/python', 
+        theme: 'ace/theme/github', 
+        fontSize: 14, 
+        showPrintMargin: false, 
+        tabSize: 4, 
+        useSoftTabs: true 
       });
-      loadQuestion(current);
+      
+      // Add click handlers for panel activation
+      const questionPanel = document.getElementById('question-panel');
+      const editorPanel = document.getElementById('editor-panel');
+      
+      questionPanel.addEventListener('click', () => {
+        questionPanel.classList.add('active');
+        editorPanel.classList.remove('active');
+      });
+      
+      editorPanel.addEventListener('click', () => {
+        editorPanel.classList.add('active');
+        questionPanel.classList.remove('active');
+      });
+      
+      // Initialize speech recognition
+      if (initSpeechRecognition()) {
+        // Start with the first question
+        loadQuestion(current);
+      }
     });
   </script>
 </body>
