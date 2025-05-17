@@ -38,6 +38,7 @@
       border-radius: 0 0 .25rem .25rem;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       font-weight: 600;
+      background: #fff;
     }
     /* Main Layout */
     .main-content {
@@ -52,23 +53,44 @@
     /* Panel Common */
     .panel {
       background: #fff;
-      border-radius: .5rem;
+      border-radius: .75rem;
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      transition: box-shadow 0.3s ease, transform 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .panel:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
     }
     .panel.active {
-      box-shadow: 0 20px 48px rgba(0,0,0,0.1);
+      box-shadow: 0 20px 48px rgba(0,0,0,0.15);
       transform: translateY(-4px);
+      border-color: rgba(0,0,0,0.1);
+    }
+    .panel.active::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #007bff, #00bcd4);
+      border-radius: 4px 4px 0 0;
     }
     .panel-header {
-      padding: 1rem 1.5rem;
+      padding: 1.25rem 1.5rem;
       background: #ffffff;
       border-bottom: 1px solid #e1e4e8;
       font-weight: 600;
       font-size: 1.25rem;
+      position: relative;
+    }
+    .panel.active .panel-header {
+      background: linear-gradient(to right, #f8f9fa, #ffffff);
     }
     .panel-body {
       padding: 1.5rem;
@@ -81,8 +103,18 @@
     #question-panel { 
       width: 35%;
     }
-    .problem-title { font-size: 1.5rem; font-weight: 600; margin-bottom: .75rem; }
-    .section-heading { font-size: 1.1rem; font-weight: 600; margin-top: 1.25rem; }
+    .problem-title { 
+      font-size: 1.5rem; 
+      font-weight: 600; 
+      margin-bottom: .75rem;
+      color: #2c3e50;
+    }
+    .section-heading { 
+      font-size: 1.1rem; 
+      font-weight: 600; 
+      margin-top: 1.25rem;
+      color: #34495e;
+    }
     .testcase {
       background: #f8f9fa;
       margin-top: .5rem;
@@ -90,6 +122,7 @@
       border-radius: .25rem;
       font-size: .95rem;
       white-space: pre-wrap;
+      border: 1px solid #e9ecef;
     }
     
     /* Code Editor Panel Specific */
@@ -98,7 +131,11 @@
       display: flex; 
       flex-direction: column;
     }
-    #editor { flex-grow: 1; }
+    #editor { 
+      flex-grow: 1;
+      border-radius: 0.5rem;
+      overflow: hidden;
+    }
     
     /* Chat Interface */
     #chat-container {
@@ -114,18 +151,28 @@
       padding: 0.5rem;
       background: #f8f9fa;
       border-radius: 0.25rem;
+      border: 1px solid #e9ecef;
     }
     .message {
       margin-bottom: 0.5rem;
-      padding: 0.5rem;
-      border-radius: 0.25rem;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .user-message {
       background: #e3f2fd;
       text-align: right;
+      margin-left: 2rem;
+      border-bottom-right-radius: 0;
     }
     .ai-message {
       background: #f1f1f1;
+      margin-right: 2rem;
+      border-bottom-left-radius: 0;
+    }
+    .thinking {
+      opacity: 0.7;
+      font-style: italic;
     }
   </style>
 </head>
@@ -135,7 +182,7 @@
 
   <div class="container-fluid main-content">
     <!-- Question Panel -->
-    <div id="question-panel" class="panel">
+    <div id="question-panel" class="panel active">
       <div class="panel-header">Question</div>
       <div class="panel-body" id="question-content"></div>
       <div id="chat-container">
@@ -153,285 +200,6 @@
   <!-- Bootstrap & Ace -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.15.2/ace.js"></script>
-  <script>
-    const questions = [
-      { title: '1. 3Sum', prompt: 'Given an array nums of n integers, return all unique triplets [nums[i], nums[j], nums[k]] such that i != j, i != k, j != k, and nums[i] + nums[j] + nums[k] == 0.', examples: ['Input: nums = [-1,0,1,2,-1,-4]\nOutput: [[-1,-1,2],[-1,0,1]]'], constraints: ['0 <= nums.length <= 3000','-10^5 <= nums[i] <= 10^5'] },
-      { title: '2. Add Two Numbers', prompt: 'Add two numbers represented by linked lists in reverse order.', examples: ['Input: l1=[2,4,3], l2=[5,6,4]\nOutput: [7,0,8]'], constraints: ['1 <= nodes <= 100','0 <= Node.val <= 9'] },
-      { title: '3. Longest Substring Without Repeating Characters', prompt: 'Find the length of the longest substring without repeating characters.', examples: ['Input: s="abcabcbb"\nOutput: 3'], constraints: ['0 <= s.length <= 5*10^4'] }
-    ];
-
-    let current = 0;
-    let editor;
-    let recognition;
-    let isRecording = false;
-    let conversation = [];
-    let silenceTimer;
-    let lastUserActivity = Date.now();
-    let questionCompleted = false;
-
-    // Initialize speech recognition
-    function initSpeechRecognition() {
-      if ('webkitSpeechRecognition' in window) {
-        recognition = new webkitSpeechRecognition();
-      } else if ('SpeechRecognition' in window) {
-        recognition = new SpeechRecognition();
-      } else {
-        alert('Speech recognition is not supported in your browser.');
-        return false;
-      }
-      
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      
-      recognition.onstart = function() {
-        isRecording = true;
-        document.getElementById('recording-banner').style.display = 'block';
-      };
-      
-      recognition.onend = function() {
-        isRecording = false;
-        document.getElementById('recording-banner').style.display = 'none';
-        // Restart recognition if it was stopped unexpectedly
-        if (!questionCompleted) {
-          setTimeout(() => {
-            if (!isRecording) {
-              recognition.start();
-            }
-          }, 1000);
-        }
-      };
-      
-      recognition.onresult = function(event) {
-        // Reset silence timer on any speech activity
-        lastUserActivity = Date.now();
-        clearTimeout(silenceTimer);
-        
-        // Check if we have a final result
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            const transcript = event.results[i][0].transcript;
-            addMessage('user', transcript);
-            
-            // Send transcript and code to server for processing
-            const code = editor.getValue();
-            processUserInput(transcript, code);
-            
-            // Start silence timer after user speaks
-            startSilenceTimer();
-          }
-        }
-      };
-      
-      recognition.onerror = function(event) {
-        console.error('Speech recognition error:', event.error);
-        isRecording = false;
-        document.getElementById('recording-banner').style.display = 'none';
-        
-        // Restart recognition if it was stopped due to an error
-        if (!questionCompleted) {
-          setTimeout(() => {
-            if (!isRecording) {
-              recognition.start();
-            }
-          }, 1000);
-        }
-      };
-      
-      return true;
-    }
-
-    // Start silence timer to detect when user has stopped speaking
-    function startSilenceTimer() {
-      clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        // If user hasn't spoken for 5 seconds, check if we should move to next question
-        if (Date.now() - lastUserActivity > 5000) {
-          checkQuestionCompletion();
-        }
-      }, 5000);
-    }
-
-    // Check if the current question is completed
-    function checkQuestionCompletion() {
-      // Get the last few messages to analyze
-      const recentMessages = conversation.slice(-5);
-      
-      // Check for completion indicators in user messages
-      const completionIndicators = recentMessages.some(msg => 
-        msg.role === 'user' && 
-        (msg.content.toLowerCase().includes('done') || 
-         msg.content.toLowerCase().includes('finished') ||
-         msg.content.toLowerCase().includes('complete') ||
-         msg.content.toLowerCase().includes('next question'))
-      );
-      
-      // Check for AI confirmation of completion
-      const aiConfirmation = recentMessages.some(msg => 
-        msg.role === 'ai' && 
-        (msg.content.toLowerCase().includes('good job') || 
-         msg.content.toLowerCase().includes('well done') ||
-         msg.content.toLowerCase().includes('let\'s move on'))
-      );
-      
-      // Check if code has been written
-      const hasCode = editor.getValue().length > 50 && editor.getValue().includes('def');
-      
-      // If we have strong indicators of completion, move to next question
-      if ((completionIndicators && aiConfirmation) || (completionIndicators && hasCode)) {
-        questionCompleted = true;
-        recognition.stop();
-        
-        // Add a small delay before moving to next question
-        setTimeout(() => {
-          moveToNextQuestion();
-        }, 2000);
-      }
-    }
-
-    // Add message to chat
-    function addMessage(sender, text) {
-      const messagesContainer = document.getElementById('chat-messages');
-      const messageElement = document.createElement('div');
-      messageElement.classList.add('message');
-      messageElement.classList.add(sender === 'user' ? 'user-message' : 'ai-message');
-      messageElement.textContent = text;
-      messagesContainer.appendChild(messageElement);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      
-      // Add to conversation history
-      conversation.push({
-        role: sender,
-        content: text,
-        timestamp: new Date().toISOString(),
-        questionId: current + 1
-      });
-    }
-
-    // Process user input and get AI response
-    function processUserInput(transcript, code) {
-      fetch('/process_interview', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transcript: transcript,
-          code: code,
-          question_id: current + 1,
-          question_title: questions[current].title,
-          conversation: conversation
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          // Add AI response to chat
-          addMessage('ai', data.response);
-          
-          // Play audio response
-          playAudioResponse(data.audio_url);
-        } else {
-          console.error('Error processing input:', data.error);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-      });
-    }
-
-    // Play audio response
-    function playAudioResponse(audioUrl) {
-      const audio = new Audio(audioUrl);
-      audio.play();
-    }
-
-    // Move to the next question
-    function moveToNextQuestion() {
-      current = (current + 1) % questions.length;
-      loadQuestion(current);
-    }
-
-    function loadQuestion(idx) {
-      const q = questions[idx];
-      document.getElementById('question-content').innerHTML = `
-        <div class="problem-title">${q.title}</div>
-        <p>${q.prompt}</p>
-        <div class="section-heading">Example:</div>
-        <div class="testcase">${q.examples.join('<br>')}</div>
-        <div class="section-heading">Constraints:</div>
-        <ul>${q.constraints.map(c=>`<li>${c}</li>`).join('')}</ul>
-      `;
-      
-      // Reset for new question
-      questionCompleted = false;
-      conversation = [];
-      document.getElementById('chat-messages').innerHTML = '';
-      editor.setValue("# Write your Python solution here");
-      
-      // Send request to start a new question
-      fetch('/start_question', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question_id: idx + 1,
-          question_title: q.title
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.audio_url) {
-          // Add AI initial message
-          addMessage('ai', data.response);
-          
-          // Play audio response
-          playAudioResponse(data.audio_url);
-          
-          // Start recording after AI speaks
-          setTimeout(() => {
-            if (!isRecording && !questionCompleted) {
-              recognition.start();
-            }
-          }, 1000);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      editor = ace.edit('editor', { 
-        mode: 'ace/mode/python', 
-        theme: 'ace/theme/github', 
-        fontSize: 14, 
-        showPrintMargin: false, 
-        tabSize: 4, 
-        useSoftTabs: true 
-      });
-      
-      // Add click handlers for panel activation
-      const questionPanel = document.getElementById('question-panel');
-      const editorPanel = document.getElementById('editor-panel');
-      
-      questionPanel.addEventListener('click', () => {
-        questionPanel.classList.add('active');
-        editorPanel.classList.remove('active');
-      });
-      
-      editorPanel.addEventListener('click', () => {
-        editorPanel.classList.add('active');
-        questionPanel.classList.remove('active');
-      });
-      
-      // Initialize speech recognition
-      if (initSpeechRecognition()) {
-        // Start with the first question
-        loadQuestion(current);
-      }
-    });
-  </script>
+  
 </body>
 </html>
