@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Task Hub</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.9.1/font/bootstrap-icons.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      /* full‑page light grid background */
+      background-color: #fff;
+      background-image:
+        repeating-linear-gradient(0deg, #f0f0f0 0, #f0f0f0 1px, transparent 1px, transparent 40px),
+        repeating-linear-gradient(90deg, #f0f0f0 0, #f0f0f0 1px, transparent 1px, transparent 40px);
+      background-size: 40px 40px;
+      color: #333;
+    }
+
+    .hero-section {
+      padding: 120px 0;
+      text-align: center;
+    }
+    .hero-content {
+        
+      font-weight: 700;
+      display: inline-block;
+      /* fully transparent so grid shines through */
+      background-color: transparent;
+      padding: 2rem 3rem;
+      border-radius: 0.5rem;
+      transition: box-shadow 0.3s ease, transform 0.2s ease;
+    }
+    /* .hero-content:hover {
+      /* subtle lift on hover */
+      /* box-shadow: 0 12px 36px rgba(0,0,0,0.1); */
+      /* transform: translateY(-4px); */ */
+    /* } */
+    .hero-content h1 {
+      font-size: 3rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .hero-content p {
+      font-size: 1.25rem;
+      color: #555;
+      margin-bottom: 2rem;
+    }
+    .hero-content .btn {
+      background-color: #000;
+      color: #fff;
+      padding: 0.75rem 2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.1);
+    }
+    .hero-content .btn:hover {
+      background-color: #333;
+      transform: translateY(-2px);
+    }
+    .hero-content .btn:active {
+      transform: translateY(0);
+    }
+
+    .features-section {
+      padding: 80px 0;
+    }
+    .feature {
+      margin-bottom: 4rem;
+    }
+    .feature .row {
+      align-items: center;
+    }
+    /* alternate 2nd feature */
+    .feature:nth-child(2) .feature-text {
+      order: 2;
+      text-align: right;
+    }
+    .feature:nth-child(2) .feature-image {
+      order: 1;
+    }
+    .feature-text {
+      text-align: left;
+    }
+    .feature-image img {
+      max-width: 100%;
+      border-radius: 0.5rem;
+    }
+
+    footer {
+      padding: 2rem 0;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .social-links a {
+      color: #555;
+      margin: 0 0.5rem;
+      font-size: 1.5rem;
+      transition: color 0.2s;
+    }
+    .social-links a:hover {
+      color: #02735e;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1>Welcome to AI Interviewer</h1>
+      <p>Something to add later</p>
+      <a href="{{ url_for('signup') }}" class="btn">Get Started</a>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section">
+    <div class="container">
+      <div class="feature">
+        <div class="row">
+          <div class="feature-text col-md-6">
+            <h3>Feature 1</h3>
+            <p>f1</p>
+          </div>
+          <div class="feature-image col-md-6">
+            <img src="." alt="Feature 1">
+          </div>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="row">
+          <div class="feature-text col-md-6">
+            <h3>feature2</h3>
+            <p>f2</p>
+          </div>
+          <div class="feature-image col-md-6">
+            <img src="." alt="Feature 2">
+          </div>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="row">
+          <div class="feature-text col-md-6">
+            <h3>feature 3</h3>
+            <p>f3</p>
+          </div>
+          <div class="feature-image col-md-6">
+            <img src="." alt="Feature 3">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="social-links mb-3">
+        <a href="https://linkedin.com" target="_blank" title="LinkedIn"><i class="bi bi-linkedin"></i></a>
+        <a href="https://wa.me" target="_blank" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+        <a href="https://instagram.com" target="_blank" title="Instagram"><i class="bi bi-instagram"></i></a>
+      </div>
+      <p>© 2024 Task Hub. All Rights Reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

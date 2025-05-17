@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Interviewer</title>
+  <!-- Poppins Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Bootstrap 5 CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css"
+    rel="stylesheet">
+  <style>
+    body, .btn { font-family: 'Poppins', sans-serif; }
+    body { margin: 0; padding: 0; background-color: #f0f2f5; }
+    /* Recording Banner */
+    #recording-banner {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1060;
+      width: 100%; max-width: 400px;
+      text-align: center;
+      padding: .5rem 1rem;
+      color: #212529;
+      border-radius: 0 0 .25rem .25rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      font-weight: 600;
+    }
+    /* Main Layout */
+    .main-content {
+      display: flex;
+      height: 100vh;
+      padding-top: 3rem; /* below banner */
+      gap: 1rem;
+      background-color: #f0f2f5;
+    }
+
+    /* Panel Common */
+    .panel {
+      background: #fff;
+      border-radius: .5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 1rem 1.5rem;
+      background: #ffffff;
+      border-bottom: 1px solid #e1e4e8;
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    .panel-body {
+      padding: 1.5rem;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+
+    /* Question Panel Specific */
+    #question-panel { width: 35%; }
+    .problem-title { font-size: 1.5rem; font-weight: 600; margin-bottom: .75rem; }
+    .section-heading { font-size: 1.1rem; font-weight: 600; margin-top: 1.25rem; }
+    .testcase {
+      background: #f8f9fa;
+      margin-top: .5rem;
+      padding: .75rem;
+      border-radius: .25rem;
+      font-size: .95rem;
+      white-space: pre-wrap;
+    }
+    #controls { padding: 1rem; text-align: center; border-top: 1px solid #e1e4e8; }
+    #controls .btn { width: 80%; }
+
+    /* Code Editor Panel Specific */
+    #editor-panel { flex-grow: 1; display: flex; flex-direction: column; }
+    #editor { flex-grow: 1; }
+  </style>
+</head>
+<body>
+  <!-- Recording Banner -->
+  <div id="recording-banner" style="display:none;">🔴 Audio is being recorded</div>
+
+  <div class="container-fluid main-content">
+    <!-- Question Panel -->
+    <div id="question-panel" class="panel">
+      <div class="panel-header">Question</div>
+      <div class="panel-body" id="question-content"></div>
+      <div id="controls"><button id="next-btn" class="btn btn-primary">Next Question</button></div>
+    </div>
+
+    <!-- Code Editor Panel -->
+    <div id="editor-panel" class="panel">
+      <div class="panel-header">Code Editor</div>
+      <div id="editor" class="panel-body"># Write your Python solution here</div>
+    </div>
+  </div>
+
+  <!-- Bootstrap & Ace -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.15.2/ace.js"></script>
+  <script>
+    const questions = [
+      { title: '1. 3Sum', prompt: 'Given an array nums of n integers, return all unique triplets [nums[i], nums[j], nums[k]] such that i != j, i != k, j != k, and nums[i] + nums[j] + nums[k] == 0.', examples: ['Input: nums = [-1,0,1,2,-1,-4]\nOutput: [[-1,-1,2],[-1,0,1]]'], constraints: ['0 <= nums.length <= 3000','-10^5 <= nums[i] <= 10^5'] },
+      { title: '2. Add Two Numbers', prompt: 'Add two numbers represented by linked lists in reverse order.', examples: ['Input: l1=[2,4,3], l2=[5,6,4]\nOutput: [7,0,8]'], constraints: ['1 <= nodes <= 100','0 <= Node.val <= 9'] },
+      { title: '3. Longest Substring Without Repeating Characters', prompt: 'Find the length of the longest substring without repeating characters.', examples: ['Input: s="abcabcbb"\nOutput: 3'], constraints: ['0 <= s.length <= 5*10^4'] }
+    ];
+
+    let current = 0, recorder;
+
+    function loadQuestion(idx) {
+      const q = questions[idx];
+      document.getElementById('question-content').innerHTML = `
+        <div class="problem-title">${q.title}</div>
+        <p>${q.prompt}</p>
+        <div class="section-heading">Example:</div>
+        <div class="testcase">${q.examples.join('<br>')}</div>
+        <div class="section-heading">Constraints:</div>
+        <ul>${q.constraints.map(c=>`<li>${c}</li>`).join('')}</ul>
+      `;
+      if(recorder && recorder.state==='recording') recorder.stop();
+      startRecording();
+    }
+
+    function startRecording() {
+      navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+        recorder = new MediaRecorder(stream);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {/* process chunks */};
+        recorder.start();
+        document.getElementById('recording-banner').style.display = 'block';
+      }).catch(console.error);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      ace.edit('editor', { mode: 'ace/mode/python', theme: 'ace/theme/github', fontSize: 14, showPrintMargin: false, tabSize: 4, useSoftTabs: true });
+      document.getElementById('next-btn').addEventListener('click', () => {
+        if(recorder && recorder.state==='recording'){
+          recorder.stop();
+          document.getElementById('recording-banner').style.display = 'none';
+        }
+        current = (current + 1) % questions.length;
+        loadQuestion(current);
+      });
+      loadQuestion(current);
+    });
+  </script>
+</body>
+</html>
